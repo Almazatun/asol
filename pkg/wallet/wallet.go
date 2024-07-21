@@ -8,14 +8,17 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/Almazatun/asol/helper"
 	"github.com/gagliardetto/solana-go"
 	"github.com/jedib0t/go-pretty/table"
-	"github.com/manifoldco/promptui"
 )
 
-var errMsg = "Please specify correct argument by wallet command"
-var keyWord = "new"
-var fileName = "data.json"
+const (
+	errMsg               = "Please specify correct argument by wallet command"
+	keyWord              = "new"
+	fileName             = "data.json"
+	createJsonFilePrompt = "Create JSON file to save created wallet ?"
+)
 
 type walletData struct {
 	PrivateKey string `json:"privateKey"`
@@ -35,7 +38,7 @@ func CreateWallet(args []string) {
 
 		t.AppendHeader(table.Row{"PublicKey", "PrivateKey"})
 		t.AppendRow(table.Row{acc.PublicKey(), acc.PrivateKey})
-		createJsonPromptRes := createJSONFilePrompt()
+		createJsonPromptRes := helper.YesOrNoPromptByQuestion(createJsonFilePrompt)
 
 		if createJsonPromptRes == "Yes" {
 			walletData := walletData{
@@ -89,7 +92,7 @@ func CreateWallet(args []string) {
 		t.AppendHeader(table.Row{"#", "PublicKey", "PrivateKey"})
 		t.SetCaption("Wallets")
 
-		createJsonPromptRes := createJSONFilePrompt()
+		createJsonPromptRes := helper.YesOrNoPromptByQuestion(createJsonFilePrompt)
 
 		list := []walletData{}
 		for i := 0; i < num; i++ {
@@ -128,18 +131,4 @@ func CreateWallet(args []string) {
 	}
 
 	log.Println(errMsg)
-}
-func createJSONFilePrompt() string {
-	prompt := promptui.Select{
-		Label: "Create JSON file to save created wallet ?",
-		Items: []string{"Yes", "No"},
-	}
-
-	_, result, err := prompt.Run()
-
-	if err != nil {
-		log.Fatalf("Prompt failed %v\n", err)
-	}
-
-	return result
 }
