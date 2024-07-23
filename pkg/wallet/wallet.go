@@ -8,7 +8,7 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/Almazatun/asol/helper"
+	"github.com/Almazatun/asol/pkg/prompt"
 	"github.com/gagliardetto/solana-go"
 	"github.com/jedib0t/go-pretty/table"
 )
@@ -38,7 +38,7 @@ func CreateWallet(args []string) {
 
 		t.AppendHeader(table.Row{"PublicKey", "PrivateKey"})
 		t.AppendRow(table.Row{acc.PublicKey(), acc.PrivateKey})
-		createJsonPromptRes := helper.YesOrNoPromptByQuestion(createJsonFilePrompt)
+		createJsonPromptRes := prompt.YesOrNoPromptByQuestion(createJsonFilePrompt)
 
 		if createJsonPromptRes == "Yes" {
 			walletData := walletData{
@@ -47,7 +47,6 @@ func CreateWallet(args []string) {
 			}
 
 			file, err := os.OpenFile(fileName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
-
 			if err != nil {
 				log.Fatalf("Failed to open file: %v", err)
 			}
@@ -55,8 +54,8 @@ func CreateWallet(args []string) {
 			defer file.Close()
 
 			encoder := json.NewEncoder(file)
-			err = encoder.Encode(walletData)
 
+			err = encoder.Encode(walletData)
 			if err != nil {
 				log.Fatalf("Failed to encode JSON: %v", err)
 			}
@@ -74,7 +73,6 @@ func CreateWallet(args []string) {
 		}
 
 		num, err := strconv.Atoi(args[1])
-
 		if err != nil {
 			log.Println("Create wallet count should be a number without any symbols")
 
@@ -92,7 +90,7 @@ func CreateWallet(args []string) {
 		t.AppendHeader(table.Row{"#", "PublicKey", "PrivateKey"})
 		t.SetCaption("Wallets")
 
-		createJsonPromptRes := helper.YesOrNoPromptByQuestion(createJsonFilePrompt)
+		createJsonPromptRes := prompt.YesOrNoPromptByQuestion(createJsonFilePrompt)
 
 		list := []walletData{}
 		for i := 0; i < num; i++ {
@@ -111,7 +109,6 @@ func CreateWallet(args []string) {
 
 		if createJsonPromptRes == "Yes" {
 			file, err := os.OpenFile(fileName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
-
 			if err != nil {
 				log.Fatalf("Failed to open file: %v", err)
 			}
@@ -119,8 +116,8 @@ func CreateWallet(args []string) {
 			defer file.Close()
 
 			encoder := json.NewEncoder(file)
-			err = encoder.Encode(list)
 
+			err = encoder.Encode(list)
 			if err != nil {
 				log.Fatalf("Failed to encode JSON: %v", err)
 			}

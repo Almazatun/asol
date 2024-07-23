@@ -2,11 +2,12 @@ package balance
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log"
 	"math/big"
 
+	"github.com/Almazatun/asol/helper"
+	"github.com/Almazatun/asol/pkg/prompt"
 	"github.com/gagliardetto/solana-go"
 	"github.com/gagliardetto/solana-go/rpc"
 	"github.com/jedib0t/go-pretty/table"
@@ -20,19 +21,19 @@ const (
 func GetBalance(args []string) {
 	privateKeyPrompt := promptui.Prompt{
 		Label:    privateKeyQuestion,
-		Validate: validatePrivateKey,
+		Validate: helper.ValidatePrivateKey,
 	}
 
 	result, err := privateKeyPrompt.Run()
 
 	if err != nil {
-		log.Printf("Prompt failed %v\n", err)
-		return
+		log.Fatalf("Prompt failed %v\n", err)
 	}
 
+	// https://github.com/gagliardetto/solana-go/issues/232
 	pk, _ := solana.PrivateKeyFromBase58(result)
 
-	endpoint := selectNetworkPrompt()
+	endpoint := prompt.SelectNetworkPrompt()
 	client := rpc.New(endpoint)
 
 	out, err := client.GetBalance(
@@ -40,9 +41,8 @@ func GetBalance(args []string) {
 		pk.PublicKey(),
 		rpc.CommitmentFinalized,
 	)
-
 	if err != nil {
-		panic(err)
+		log.Fatalf("Get balance failed %v\n", err)
 	}
 
 	t := table.NewWriter()
@@ -54,33 +54,4 @@ func GetBalance(args []string) {
 	t.AppendRow(table.Row{pk.PublicKey(), new(big.Float).Quo(lamportsOnAccount, new(big.Float).SetUint64(solana.LAMPORTS_PER_SOL))})
 
 	fmt.Println(t.Render())
-}
-
-func validatePrivateKey(input string) error {
-	_, err := solana.PrivateKeyFromBase58(input)
-
-	if err != nil {
-		return errors.New("Invalid private key")
-	}
-
-	return nil
-}
-
-func selectNetworkPrompt() string {
-	prompt := promptui.Select{
-		Label: "Please select network",
-		Items: []string{"Mainnet", "Devnet"},
-	}
-
-	_, result, err := prompt.Run()
-
-	if err != nil {
-		log.Fatalf("Prompt failed %v\n", err)
-	}
-
-	if result == "Mainnet" {
-		return rpc.MainNetBeta_RPC
-	}
-
-	return rpc.DevNet_RPC
 }
