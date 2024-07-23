@@ -1,0 +1,30 @@
+name: ASOL_CLI_WORKFLOW
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  audit:
+    runs-on: ubuntu-20.04
+    strategy:
+      matrix:
+        go-version: ["1.22.x"]
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Install dependencies
+        run: go get ./...
+
+      - name: Build ASOL binary
+        run: make build
+
+      - name: Run ASOL tests
+        run: make test
