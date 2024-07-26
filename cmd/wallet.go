@@ -1,7 +1,9 @@
 package asol
 
 import (
-	"github.com/Almazatun/asol/pkg/wallet"
+	"log"
+
+	"github.com/Almazatun/asol/pkg/subcmd/wallet"
 	"github.com/spf13/cobra"
 )
 
@@ -11,10 +13,13 @@ var walletCmd = &cobra.Command{
 	Short: "create (account | accounts)",
 	Long:  `create (account | accounts) on SOL blockchain`,
 	Run: func(cmd *cobra.Command, args []string) {
-		wallet.CreateWallet(args)
+		if err := wallet.CreateWallet(cmd, args); err != nil {
+			log.Fatal(err)
+		}
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(walletCmd)
+	walletCmd.PersistentFlags().String("list", "", "make able to create list of accounts")
 }

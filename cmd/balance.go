@@ -1,7 +1,7 @@
 package asol
 
 import (
-	"github.com/Almazatun/asol/pkg/balance"
+	"github.com/Almazatun/asol/pkg/subcmd/balance"
 	"github.com/spf13/cobra"
 )
 

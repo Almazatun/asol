@@ -1,7 +1,7 @@
 package asol
 
 import (
-	"github.com/Almazatun/asol/pkg/transfer"
+	"github.com/Almazatun/asol/pkg/subcmd/transfer"
 	"github.com/spf13/cobra"
 )
 

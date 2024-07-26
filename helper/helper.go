@@ -8,6 +8,8 @@ import (
 	"github.com/gagliardetto/solana-go"
 )
 
+const lamportsSol = 1000_000_000
+
 func ConvertSolToLamports(sol string) (uint64, error) {
 	// Parse the SOL amount from string to float64
 	solValue, err := strconv.ParseFloat(sol, 64)
@@ -16,14 +18,14 @@ func ConvertSolToLamports(sol string) (uint64, error) {
 	}
 
 	// Convert SOL to lamports (1 SOL = 1,000,000,000 lamports)
-	lamports := uint64(solValue * 1000000000)
+	lamports := uint64(solValue * lamportsSol)
 	return lamports, nil
 }
 
 // ConvertLamportsToSol converts lamports to SOL.
 func ConvertLamportsToSol(lamports uint64) string {
 	// Convert lamports to SOL (1,000,000,000 lamports = 1 SOL)
-	solValue := float64(lamports) / 1000000000
+	solValue := float64(lamports) / lamportsSol
 	return fmt.Sprintf("%.9f", solValue)
 }
 
