@@ -17,3 +17,5 @@ const HELP_ART = `
  |_| |_|_____|_____|_|    
                          
 `
+
+const QUESTION_PROMPT_EXIT_PART = ", or Cntrl+C to exit"

@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/Almazatun/asol/constant"
 	"github.com/Almazatun/asol/helper"
 	"github.com/Almazatun/asol/pkg/prompt"
 	"github.com/davecgh/go-spew/spew"
@@ -20,33 +21,38 @@ import (
 )
 
 const (
-	privateKeyQuestion      = "Please enter your private key, or Cntrl+C to exit"
-	transferAccountQuestion = "Please enter account address to transfer, or Cntrl+C to exit"
-	transferAmountQuestion  = "Please enter transfer amount, or Cntrl+C to exit"
+	privateKeyQuestion      = "Please enter your private key"
+	transferAccountQuestion = "Please enter account address to transfer"
+	transferAmountQuestion  = "Please enter transfer amount"
 )
 
-func TransferBalance(args []string) {
+func TransferBalance(args []string) error {
 	endpoint := prompt.SelectNetworkPrompt()
 	rpcClient := rpc.New(endpoint)
 
 	// Create a new WS client (used for confirming transactions)
 	wsClient, err := ws.Connect(context.Background(), getWSRpc(endpoint))
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	privateKeyPrompt := promptui.Prompt{
-		Label:    privateKeyQuestion,
-		Validate: helper.ValidatePrivateKey,
+		Label: privateKeyQuestion + constant.QUESTION_PROMPT_EXIT_PART,
 	}
 
 	result, err := privateKeyPrompt.Run()
 	if err != nil {
-		log.Fatalf("Prompt failed %v\n", err)
+		return fmt.Errorf(fmt.Sprintf("prompt failed %v\n", err))
 	}
 
 	// signer
-	pk, _ := solana.PrivateKeyFromBase58(result)
+	pk, err := solana.PrivateKeyFromBase58(result)
+
+	if err != nil {
+		return fmt.Errorf(fmt.Sprintf("parse private key failed %v\n", err))
+	}
+	// validate private key
+	pk.Sign(pk)
 
 	out, err := rpcClient.GetBalance(
 		context.TODO(),
@@ -54,46 +60,45 @@ func TransferBalance(args []string) {
 		rpc.CommitmentFinalized,
 	)
 	if err != nil {
-		log.Fatalf("Failed to get balance %v\n", err)
+		return fmt.Errorf(fmt.Sprintf("failed to get balance %v\n", err))
 	}
 
 	solAmountPrompt := promptui.Prompt{
-		Label: transferAmountQuestion,
+		Label: transferAmountQuestion + constant.QUESTION_PROMPT_EXIT_PART,
 	}
 
 	amount, err := solAmountPrompt.Run()
 	if err != nil {
-		log.Printf("Prompt failed %v\n", err)
+		return fmt.Errorf(fmt.Sprintf("prompt failed %v\n", err))
 	}
 
 	lamportTransferAmount, err := helper.ConvertSolToLamports(amount)
 	if err != nil {
-		log.Printf("Failed to convert sol to lamport %v\n", err)
+		return fmt.Errorf(fmt.Sprintf("failed to convert sol to lamport %v\n", err))
 	}
 
 	// Check current account balance for transfer
 	if out.Value < lamportTransferAmount || lamportTransferAmount <= 0 {
-		log.Fatalf("Your account balance is not enough for transfer SOL\n")
+		return fmt.Errorf("your account balance is not enough for transfer SOL")
 	}
 
 	pubKeyAccountPrompt := promptui.Prompt{
-		Label: transferAccountQuestion,
+		Label: transferAccountQuestion + constant.QUESTION_PROMPT_EXIT_PART,
 	}
 
 	publicKeyAccount, err := pubKeyAccountPrompt.Run()
 	if err != nil {
-		log.Printf("Prompt failed %v\n", err)
-		return
+		return fmt.Errorf(fmt.Sprintf("prompt failed %v\n", err))
 	}
 
 	accountTo, err := solana.PublicKeyFromBase58(publicKeyAccount)
 	if err != nil {
-		log.Fatalf("Failed to parse public key %v\n", err)
+		return fmt.Errorf(fmt.Sprintf("failed to parse public key %v\n", err))
 	}
 
 	recent, err := rpcClient.GetRecentBlockhash(context.TODO(), rpc.CommitmentFinalized)
 	if err != nil {
-		log.Fatalf("Failed to get recent blockhash %v\n", err)
+		return fmt.Errorf(fmt.Sprintf("failed to get recent blockhash %v\n", err))
 	}
 
 	tx, err := solana.NewTransaction(
@@ -109,7 +114,7 @@ func TransferBalance(args []string) {
 	)
 
 	if err != nil {
-		log.Fatalf("Failed to create transaction %v\n", err)
+		return fmt.Errorf(fmt.Sprintf("failed to create transaction %v\n", err))
 	}
 
 	_, err = tx.Sign(
@@ -149,6 +154,7 @@ func TransferBalance(args []string) {
 	t.AppendRow(table.Row{pk.PublicKey().String(), accountTo.String(), amount})
 
 	fmt.Println(t.Render())
+	return nil
 }
 
 func getWSRpc(clientRPCNet string) string {

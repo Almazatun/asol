@@ -3,6 +3,8 @@ package helper
 import (
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strconv"
 
 	"github.com/gagliardetto/solana-go"
@@ -30,13 +32,23 @@ func ConvertLamportsToSol(lamports uint64) string {
 }
 
 func ValidatePrivateKey(input string) error {
-	pk, err := solana.PrivateKeyFromBase58(input)
+	_, err := solana.PrivateKeyFromBase58(input)
 
 	// Only way to check is correct private key
 	// But this method call panic instead of return error if invalid private key
-	// pk.PublicKey()
-	if err != nil || len(pk.String()) == 0 {
-		return errors.New("Invalid private key")
+	// pk.Sign([]byte("_"))()
+	// https://github.com/gagliardetto/solana-go/issues/232
+	if err != nil {
+		return errors.New("invalid private key")
+	}
+
+	return nil
+}
+
+func CheckSubDirExists(homeDir, subDir string) error {
+	// Ensure the subdirectory exists
+	if err := os.MkdirAll(filepath.Join(homeDir, subDir), os.ModePerm); err != nil {
+		return fmt.Errorf(fmt.Sprintf("error creating subdirectory: %v", err))
 	}
 
 	return nil

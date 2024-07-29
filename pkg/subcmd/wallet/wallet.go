@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Almazatun/asol/helper"
 	"github.com/Almazatun/asol/pkg/prompt"
 	"github.com/gagliardetto/solana-go"
 	"github.com/jedib0t/go-pretty/table"
@@ -63,13 +64,13 @@ func CreateWallet(cmd *cobra.Command, args []string) error {
 			// Get the user's home directory
 			hDir, err := os.UserHomeDir()
 			if err != nil {
-				return errors.New(fmt.Sprintf("failed to get user's home directory: %v", err))
+				return fmt.Errorf(fmt.Sprintf("failed to get user's home directory: %v", err))
 			}
 
 			homeDir = hDir
 
-			sDir := subDirPrompt(hDir)
-			if err := checkSubDirExists(homeDir, subDir); err != nil {
+			sDir := prompt.SubDirPrompt(hDir)
+			if err := helper.CheckSubDirExists(homeDir, subDir); err != nil {
 				return err
 			}
 
@@ -121,13 +122,13 @@ func CreateWallet(cmd *cobra.Command, args []string) error {
 		// Get the user's home directory
 		hDir, err := os.UserHomeDir()
 		if err != nil {
-			return errors.New(fmt.Sprintf("failed to get user's home directory: %v", err))
+			return fmt.Errorf(fmt.Sprintf("failed to get user's home directory: %v", err))
 		}
 
 		homeDir = hDir
 
-		sDir := subDirPrompt(hDir)
-		if err := checkSubDirExists(homeDir, subDir); err != nil {
+		sDir := prompt.SubDirPrompt(hDir)
+		if err := helper.CheckSubDirExists(homeDir, subDir); err != nil {
 			return err
 		}
 
@@ -157,7 +158,7 @@ func CreateWallet(cmd *cobra.Command, args []string) error {
 func createJsonAccountFile(fullPath string, data interface{}) error {
 	file, err := os.OpenFile(fullPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
-		return errors.New(fmt.Sprintf("failed to open file: %v", err))
+		return fmt.Errorf(fmt.Sprintf("failed to open file: %v", err))
 	}
 
 	defer file.Close()
@@ -166,7 +167,7 @@ func createJsonAccountFile(fullPath string, data interface{}) error {
 
 	err = encoder.Encode(data)
 	if err != nil {
-		return errors.New(fmt.Sprintf("failed to encode JSON: %v", err))
+		return fmt.Errorf(fmt.Sprintf("failed to encode JSON: %v", err))
 	}
 
 	return nil
@@ -174,25 +175,10 @@ func createJsonAccountFile(fullPath string, data interface{}) error {
 
 func checkMaxAccountVal(i int) error {
 	if math.Floor(float64(i)) > float64(maxAccountToCreate) {
-		return errors.New(fmt.Sprintf("maximum number to create wallets should be less than or qual to %v", maxAccountToCreate))
+		return fmt.Errorf(fmt.Sprintf("maximum number to create wallets should be less than or qual to %v", maxAccountToCreate))
 	}
 
 	return nil
-}
-
-func subDirPrompt(homeDir string) string {
-	prompt := promptui.Prompt{
-		Label: fmt.Sprintf("Please enter subdirectory path ..., $HOME=%v/...", homeDir),
-	}
-
-	result, err := prompt.Run()
-
-	if err != nil {
-		log.Fatalf("prompt failed %v\n", err)
-		return ""
-	}
-
-	return result
 }
 
 func fileNamePrompt() string {
@@ -215,13 +201,4 @@ func fileNamePrompt() string {
 	}
 
 	return result + ".json"
-}
-
-func checkSubDirExists(homeDir, subDir string) error {
-	// Ensure the subdirectory exists
-	if err := os.MkdirAll(filepath.Join(homeDir, subDir), os.ModePerm); err != nil {
-		return errors.New(fmt.Sprintf("error creating subdirectory: %v", err))
-	}
-
-	return nil
 }
