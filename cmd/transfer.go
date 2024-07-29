@@ -1,6 +1,8 @@
 package asol
 
 import (
+	"log"
+
 	"github.com/Almazatun/asol/pkg/subcmd/transfer"
 	"github.com/spf13/cobra"
 )
@@ -11,7 +13,9 @@ var transferCmd = &cobra.Command{
 	Short: "transfer SOL",
 	Long:  "transfer SOL from one account to another",
 	Run: func(cmd *cobra.Command, args []string) {
-		transfer.TransferBalance(args)
+		if err := transfer.TransferBalance(args); err != nil {
+			log.Fatal(err)
+		}
 	},
 }
 

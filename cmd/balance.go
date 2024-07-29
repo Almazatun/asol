@@ -1,6 +1,8 @@
 package asol
 
 import (
+	"log"
+
 	"github.com/Almazatun/asol/pkg/subcmd/balance"
 	"github.com/spf13/cobra"
 )
@@ -11,7 +13,9 @@ var balanceCmd = &cobra.Command{
 	Short: "get balance of SOL account",
 	Long:  `get balance of SOL account`,
 	Run: func(cmd *cobra.Command, args []string) {
-		balance.GetBalance(args)
+		if err := balance.GetBalance(args); err != nil {
+			log.Fatal(err)
+		}
 	},
 }
 
