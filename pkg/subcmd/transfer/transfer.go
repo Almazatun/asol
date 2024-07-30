@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 
 	"github.com/Almazatun/asol/constant"
 	"github.com/Almazatun/asol/helper"
@@ -26,6 +27,8 @@ const (
 	transferAmountQuestion  = "Please enter transfer amount"
 )
 
+var privateKey solana.PrivateKey
+
 func TransferBalance(args []string) error {
 	endpoint := prompt.SelectNetworkPrompt()
 	rpcClient := rpc.New(endpoint)
@@ -36,27 +39,52 @@ func TransferBalance(args []string) error {
 		return err
 	}
 
-	privateKeyPrompt := promptui.Prompt{
-		Label: privateKeyQuestion + constant.QUESTION_PROMPT_EXIT_PART,
-	}
+	selectOptToGetBalance := prompt.FromPKOrKGFPrompt()
 
-	result, err := privateKeyPrompt.Run()
-	if err != nil {
-		return fmt.Errorf(fmt.Sprintf("prompt failed %v\n", err))
-	}
+	// TODO refactor
+	if selectOptToGetBalance == "KGF" {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return fmt.Errorf(fmt.Sprintf("failed to get user's home directory: %v", err))
+		}
 
-	// signer
-	pk, err := solana.PrivateKeyFromBase58(result)
+		subDir := prompt.SubDirPrompt(homeDir)
+		if err := helper.CheckSubDirExists(homeDir, subDir); err != nil {
+			return err
+		}
 
-	if err != nil {
-		return fmt.Errorf(fmt.Sprintf("parse private key failed %v\n", err))
+		keygenPath := filepath.Join(homeDir, subDir)
+		pk, err := solana.PrivateKeyFromSolanaKeygenFile(keygenPath)
+
+		if err != nil {
+			return fmt.Errorf(fmt.Sprintf("keygen file read failed %v\n", err))
+		}
+
+		privateKey = pk
+	} else {
+		privateKeyPrompt := promptui.Prompt{
+			Label: privateKeyQuestion + constant.QUESTION_PROMPT_EXIT_PART,
+		}
+
+		result, err := privateKeyPrompt.Run()
+		if err != nil {
+			return fmt.Errorf(fmt.Sprintf("prompt failed %v\n", err))
+		}
+
+		pk, err := solana.PrivateKeyFromBase58(result)
+		if err != nil {
+			return fmt.Errorf(fmt.Sprintf("parse private key failed %v\n", err))
+		}
+
+		// validate private key
+		pk.Sign(pk)
+
+		privateKey = pk
 	}
-	// validate private key
-	pk.Sign(pk)
 
 	out, err := rpcClient.GetBalance(
 		context.TODO(),
-		pk.PublicKey(),
+		privateKey.PublicKey(),
 		rpc.CommitmentFinalized,
 	)
 	if err != nil {
@@ -105,12 +133,12 @@ func TransferBalance(args []string) error {
 		[]solana.Instruction{
 			system.NewTransferInstruction(
 				lamportTransferAmount,
-				pk.PublicKey(),
+				privateKey.PublicKey(),
 				accountTo,
 			).Build(),
 		},
 		recent.Value.Blockhash,
-		solana.TransactionPayer(pk.PublicKey()),
+		solana.TransactionPayer(privateKey.PublicKey()),
 	)
 
 	if err != nil {
@@ -119,8 +147,8 @@ func TransferBalance(args []string) error {
 
 	_, err = tx.Sign(
 		func(key solana.PublicKey) *solana.PrivateKey {
-			if pk.PublicKey().Equals(key) {
-				return &pk
+			if privateKey.PublicKey().Equals(key) {
+				return &privateKey
 			}
 			return nil
 		},
@@ -151,7 +179,7 @@ func TransferBalance(args []string) error {
 	t.SetCaption("Transfer SOL")
 
 	t.AppendHeader(table.Row{"FromAddress", "ToAddress", "Amount"})
-	t.AppendRow(table.Row{pk.PublicKey().String(), accountTo.String(), amount})
+	t.AppendRow(table.Row{privateKey.PublicKey().String(), accountTo.String(), amount})
 
 	fmt.Println(t.Render())
 	return nil

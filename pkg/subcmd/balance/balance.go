@@ -3,7 +3,6 @@ package balance
 import (
 	"context"
 	"fmt"
-	"log"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -21,15 +20,15 @@ const (
 	privateKeyQuestion = "Please enter your private key"
 )
 
-var keygenPath string
 var privateKey solana.PrivateKey
 
 func GetBalance(args []string) error {
 	endpoint := prompt.SelectNetworkPrompt()
 	client := rpc.New(endpoint)
 
-	selectOptToGetBalance := fromPKOrKGFPrompt()
+	selectOptToGetBalance := prompt.FromPKOrKGFPrompt()
 
+	// TODO refactor
 	if selectOptToGetBalance == "KGF" {
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
@@ -41,7 +40,7 @@ func GetBalance(args []string) error {
 			return err
 		}
 
-		keygenPath = filepath.Join(homeDir, subDir)
+		keygenPath := filepath.Join(homeDir, subDir)
 		pk, err := solana.PrivateKeyFromSolanaKeygenFile(keygenPath)
 
 		if err != nil {
@@ -89,28 +88,4 @@ func GetBalance(args []string) error {
 
 	fmt.Println(t.Render())
 	return nil
-}
-
-// Get balance from by using private key or keygen file
-func fromPKOrKGFPrompt() string {
-	const (
-		pk  = "private key"
-		kgf = "keygen file"
-	)
-
-	prompt := promptui.Select{
-		Label: "Please select option to get balance by",
-		Items: []string{kgf, pk},
-	}
-
-	_, result, err := prompt.Run()
-	if err != nil {
-		log.Fatalf("Prompt failed %v\n", err)
-	}
-
-	if result == kgf {
-		return "KGF"
-	}
-
-	return "PK"
 }
