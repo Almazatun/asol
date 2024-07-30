@@ -2,10 +2,14 @@ package transfer
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/Almazatun/asol/constant"
 	"github.com/Almazatun/asol/helper"
@@ -19,7 +23,13 @@ import (
 	"github.com/gagliardetto/solana-go/text"
 	"github.com/jedib0t/go-pretty/table"
 	"github.com/manifoldco/promptui"
+	"github.com/spf13/cobra"
 )
+
+type account struct {
+	PublicKey string `json:"publicKey"`
+	Amount    string `json:"amount"`
+}
 
 const (
 	privateKeyQuestion      = "Please enter your private key"
@@ -29,7 +39,7 @@ const (
 
 var privateKey solana.PrivateKey
 
-func TransferBalance(args []string) error {
+func TransferBalance(cmd *cobra.Command, args []string) error {
 	endpoint := prompt.SelectNetworkPrompt()
 	rpcClient := rpc.New(endpoint)
 
@@ -82,6 +92,7 @@ func TransferBalance(args []string) error {
 		privateKey = pk
 	}
 
+	// Get balance from private key
 	out, err := rpcClient.GetBalance(
 		context.TODO(),
 		privateKey.PublicKey(),
@@ -91,6 +102,50 @@ func TransferBalance(args []string) error {
 		return fmt.Errorf(fmt.Sprintf("failed to get balance %v\n", err))
 	}
 
+	// Transfer balance to list of accounts
+	// Check path flags
+	pathJsonFile, _ := cmd.Flags().GetString("path")
+
+	if strings.TrimSpace(pathJsonFile) != "" {
+		info, err := os.Stat(pathJsonFile)
+
+		if os.IsNotExist(err) {
+			return fmt.Errorf(fmt.Sprintf("failed to get file %v\n", err))
+		}
+
+		if info.IsDir() {
+			return fmt.Errorf(fmt.Sprintf("failed to get file %v\n", pathJsonFile))
+		}
+
+		if err = checkFileFormat(pathJsonFile); err != nil {
+			return err
+		}
+
+		file, err := os.Open(pathJsonFile)
+		if err != nil {
+			return fmt.Errorf("Error opening file:", err)
+		}
+		defer file.Close()
+
+		// Read the file content
+		byteValue, err := io.ReadAll(file)
+		if err != nil {
+			return fmt.Errorf("Error reading file:", err)
+		}
+
+		var listAccounts []account
+
+		err = json.Unmarshal(byteValue, &listAccounts)
+		if err != nil {
+			return fmt.Errorf("Error decoding JSON:", err)
+		}
+
+		// validation public key list
+		validateAccountPubKeyList(listAccounts)
+		// validation from transfer amount
+		validateFromTransferAmount(out, listAccounts)
+		// TODO transfer accounts
+	}
 	solAmountPrompt := promptui.Prompt{
 		Label: transferAmountQuestion + constant.QUESTION_PROMPT_EXIT_PART,
 	}
@@ -191,4 +246,41 @@ func getWSRpc(clientRPCNet string) string {
 	}
 
 	return rpc.DevNet_WS
+}
+
+func checkFileFormat(file string) error {
+	if filepath.Ext(file) != ".json" {
+		return errors.New("invalid file format")
+	}
+	return nil
+}
+
+func validateAccountPubKeyList(list []account) {
+	for _, acc := range list {
+		_, err := solana.PublicKeyFromBase58(acc.PublicKey)
+
+		if err != nil {
+			log.Fatalf("failed to parse public key: %v, err: %v\n", acc.PublicKey, err)
+		}
+	}
+}
+
+// lamport value
+func validateFromTransferAmount(balanceFrom *rpc.GetBalanceResult, accountListTo []account) {
+	var sumToTransfer uint64
+	// TODO fee check
+
+	for _, acc := range accountListTo {
+		lamportTransferAmount, err := helper.ConvertSolToLamports(acc.Amount)
+
+		if err != nil {
+			log.Fatalf("failed to convert sol to lamport %v\n", err)
+		}
+
+		sumToTransfer += lamportTransferAmount
+	}
+
+	if balanceFrom.Value < sumToTransfer {
+		log.Fatalf("your account balance is not enough for transfer SOL")
+	}
 }

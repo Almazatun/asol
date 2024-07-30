@@ -13,7 +13,7 @@ var transferCmd = &cobra.Command{
 	Short: "transfer SOL",
 	Long:  "transfer SOL from one account to another",
 	Run: func(cmd *cobra.Command, args []string) {
-		if err := transfer.TransferBalance(args); err != nil {
+		if err := transfer.TransferBalance(cmd, args); err != nil {
 			log.Fatal(err)
 		}
 	},
@@ -21,4 +21,6 @@ var transferCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(transferCmd)
+	// TODO
+	// transferCmd.PersistentFlags().String("path", "", "make able to transfer list of accounts by [.json] file")
 }
