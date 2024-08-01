@@ -123,28 +123,49 @@ func TransferBalance(cmd *cobra.Command, args []string) error {
 
 		file, err := os.Open(pathJsonFile)
 		if err != nil {
-			return fmt.Errorf("Error opening file:", err)
+			return fmt.Errorf(fmt.Sprintf("failed to open file: %v", err))
 		}
 		defer file.Close()
 
 		// Read the file content
 		byteValue, err := io.ReadAll(file)
 		if err != nil {
-			return fmt.Errorf("Error reading file:", err)
+			return fmt.Errorf(fmt.Sprintf("error reading file: %v", err))
 		}
 
 		var listAccounts []account
 
 		err = json.Unmarshal(byteValue, &listAccounts)
 		if err != nil {
-			return fmt.Errorf("Error decoding JSON:", err)
+			return fmt.Errorf(fmt.Sprintf("error decoding JSON %v:", err))
 		}
 
 		// validation public key list
 		validateAccountPubKeyList(listAccounts)
 		// validation from transfer amount
 		validateFromTransferAmount(out, listAccounts)
-		// TODO transfer accounts
+
+		instructions, err := getTransferInstructions(privateKey, listAccounts)
+		if err != nil {
+			return err
+		}
+
+		if err = singAndSendTransaction(rpcClient, wsClient, privateKey, instructions); err != nil {
+			return err
+		}
+
+		t := table.NewWriter()
+		t.SetStyle(table.StyleColoredBlackOnGreenWhite)
+		t.SetCaption("Transfer SOL")
+
+		t.AppendHeader(table.Row{"FromAddress", "ToAddress", "Amount"})
+
+		for _, acc := range listAccounts {
+			t.AppendRow(table.Row{privateKey.PublicKey(), acc.PublicKey, acc.Amount})
+		}
+
+		fmt.Println(t.Render())
+		return nil
 	}
 	solAmountPrompt := promptui.Prompt{
 		Label: transferAmountQuestion + constant.QUESTION_PROMPT_EXIT_PART,
@@ -155,15 +176,8 @@ func TransferBalance(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf(fmt.Sprintf("prompt failed %v\n", err))
 	}
 
-	lamportTransferAmount, err := helper.ConvertSolToLamports(amount)
-	if err != nil {
-		return fmt.Errorf(fmt.Sprintf("failed to convert sol to lamport %v\n", err))
-	}
-
 	// Check current account balance for transfer
-	if out.Value < lamportTransferAmount || lamportTransferAmount <= 0 {
-		return fmt.Errorf("your account balance is not enough for transfer SOL")
-	}
+	validateFromTransferAmount(out, []account{{PublicKey: "", Amount: amount}})
 
 	pubKeyAccountPrompt := promptui.Prompt{
 		Label: transferAccountQuestion + constant.QUESTION_PROMPT_EXIT_PART,
@@ -174,67 +188,21 @@ func TransferBalance(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf(fmt.Sprintf("prompt failed %v\n", err))
 	}
 
-	accountTo, err := solana.PublicKeyFromBase58(publicKeyAccount)
+	instructions, err := getTransferInstructions(privateKey, []account{{PublicKey: publicKeyAccount, Amount: amount}})
 	if err != nil {
-		return fmt.Errorf(fmt.Sprintf("failed to parse public key %v\n", err))
+		return err
 	}
 
-	recent, err := rpcClient.GetRecentBlockhash(context.TODO(), rpc.CommitmentFinalized)
-	if err != nil {
-		return fmt.Errorf(fmt.Sprintf("failed to get recent blockhash %v\n", err))
+	if err = singAndSendTransaction(rpcClient, wsClient, privateKey, instructions); err != nil {
+		return err
 	}
-
-	tx, err := solana.NewTransaction(
-		[]solana.Instruction{
-			system.NewTransferInstruction(
-				lamportTransferAmount,
-				privateKey.PublicKey(),
-				accountTo,
-			).Build(),
-		},
-		recent.Value.Blockhash,
-		solana.TransactionPayer(privateKey.PublicKey()),
-	)
-
-	if err != nil {
-		return fmt.Errorf(fmt.Sprintf("failed to create transaction %v\n", err))
-	}
-
-	_, err = tx.Sign(
-		func(key solana.PublicKey) *solana.PrivateKey {
-			if privateKey.PublicKey().Equals(key) {
-				return &privateKey
-			}
-			return nil
-		},
-	)
-	if err != nil {
-		log.Fatalf("Unable to sign transaction %v\n", err)
-	}
-
-	log.Printf("🚀 Sending transaction...\n")
-	spew.Dump(tx)
-	// Pretty print the transaction:
-	tx.EncodeTree(text.NewTreeEncoder(os.Stdout, "Transfer SOL"))
-
-	sig, err := confirm.SendAndConfirmTransaction(
-		context.TODO(),
-		rpcClient,
-		wsClient,
-		tx,
-	)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	spew.Dump(sig)
 
 	t := table.NewWriter()
 	t.SetStyle(table.StyleColoredBlackOnGreenWhite)
 	t.SetCaption("Transfer SOL")
 
 	t.AppendHeader(table.Row{"FromAddress", "ToAddress", "Amount"})
-	t.AppendRow(table.Row{privateKey.PublicKey().String(), accountTo.String(), amount})
+	t.AppendRow(table.Row{privateKey.PublicKey().String(), publicKeyAccount, amount})
 
 	fmt.Println(t.Render())
 	return nil
@@ -280,7 +248,87 @@ func validateFromTransferAmount(balanceFrom *rpc.GetBalanceResult, accountListTo
 		sumToTransfer += lamportTransferAmount
 	}
 
-	if balanceFrom.Value < sumToTransfer {
+	if balanceFrom.Value < sumToTransfer || balanceFrom.Value <= 0 {
 		log.Fatalf("your account balance is not enough for transfer SOL")
 	}
+}
+
+func getTransferInstructions(fromPK solana.PrivateKey, accountListTo []account) ([]solana.Instruction, error) {
+	res := []solana.Instruction{}
+
+	if len(accountListTo) == 0 {
+		return res, nil
+	}
+
+	for _, acc := range accountListTo {
+		lamportTransferAmount, err := helper.ConvertSolToLamports(acc.Amount)
+		if err != nil {
+			return nil, fmt.Errorf(fmt.Sprintf("failed to convert sol to lamport %v\n", err))
+		}
+
+		accountTo, err := solana.PublicKeyFromBase58(acc.PublicKey)
+		if err != nil {
+			return nil, fmt.Errorf(fmt.Sprintf("failed to parse public key %v\n", acc.PublicKey))
+		}
+
+		res = append(res, system.NewTransferInstruction(
+			lamportTransferAmount,
+			fromPK.PublicKey(),
+			accountTo,
+		).Build())
+	}
+
+	return res, nil
+}
+
+func singAndSendTransaction(
+	rpcClient *rpc.Client,
+	wsClient *ws.Client,
+	privateKey solana.PrivateKey,
+	instructions []solana.Instruction,
+) error {
+	recent, err := rpcClient.GetRecentBlockhash(context.TODO(), rpc.CommitmentFinalized)
+	if err != nil {
+		return fmt.Errorf(fmt.Sprintf("failed to get recent blockhash %v\n", err))
+	}
+
+	tx, err := solana.NewTransaction(
+		instructions,
+		recent.Value.Blockhash,
+		solana.TransactionPayer(privateKey.PublicKey()),
+	)
+
+	if err != nil {
+		return fmt.Errorf(fmt.Sprintf("failed to create transaction %v\n", err))
+	}
+
+	_, err = tx.Sign(
+		func(key solana.PublicKey) *solana.PrivateKey {
+			if privateKey.PublicKey().Equals(key) {
+				return &privateKey
+			}
+			return nil
+		},
+	)
+	if err != nil {
+		return fmt.Errorf(fmt.Sprintf("unable to sign transaction %v\n", err))
+	}
+
+	log.Printf("🚀 Sending transaction...\n")
+	spew.Dump(tx)
+	// Pretty print the transaction:
+	tx.EncodeTree(text.NewTreeEncoder(os.Stdout, "Transfer SOL"))
+
+	sig, err := confirm.SendAndConfirmTransaction(
+		context.TODO(),
+		rpcClient,
+		wsClient,
+		tx,
+	)
+	if err != nil {
+		return err
+	}
+
+	spew.Dump(sig)
+	return nil
 }
