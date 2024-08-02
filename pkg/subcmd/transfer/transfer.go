@@ -42,6 +42,8 @@ var privateKey solana.PrivateKey
 func TransferBalance(cmd *cobra.Command, args []string) error {
 	endpoint := prompt.SelectNetworkPrompt()
 	rpcClient := rpc.New(endpoint)
+	// Transfer balance to list of accounts
+	pathJsonFile, _ := cmd.Flags().GetString("path")
 
 	// Create a new WS client (used for confirming transactions)
 	wsClient, err := ws.Connect(context.Background(), getWSRpc(endpoint))
@@ -102,11 +104,19 @@ func TransferBalance(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf(fmt.Sprintf("failed to get balance %v\n", err))
 	}
 
-	// Transfer balance to list of accounts
-	// Check path flags
-	pathJsonFile, _ := cmd.Flags().GetString("path")
-
 	if strings.TrimSpace(pathJsonFile) != "" {
+		// JSON file struct
+		// [
+		// {
+		// "publicKey": "some_address",
+		// "amount": "0.5"
+		// },
+		// {
+		// "publicKey": "some_address",
+		// "amount": "0.5"
+		// }
+		// ]
+		// example --path="/homeDIR/subDIR/file.json"
 		info, err := os.Stat(pathJsonFile)
 
 		if os.IsNotExist(err) {
@@ -158,7 +168,7 @@ func TransferBalance(cmd *cobra.Command, args []string) error {
 		t.SetStyle(table.StyleColoredBlackOnGreenWhite)
 		t.SetCaption("Transfer SOL")
 
-		t.AppendHeader(table.Row{"FromAddress", "ToAddress", "Amount"})
+		t.AppendHeader(table.Row{"From", "To", "Amount"})
 
 		for _, acc := range listAccounts {
 			t.AppendRow(table.Row{privateKey.PublicKey(), acc.PublicKey, acc.Amount})
@@ -201,7 +211,7 @@ func TransferBalance(cmd *cobra.Command, args []string) error {
 	t.SetStyle(table.StyleColoredBlackOnGreenWhite)
 	t.SetCaption("Transfer SOL")
 
-	t.AppendHeader(table.Row{"FromAddress", "ToAddress", "Amount"})
+	t.AppendHeader(table.Row{"From", "To", "Amount"})
 	t.AppendRow(table.Row{privateKey.PublicKey().String(), publicKeyAccount, amount})
 
 	fmt.Println(t.Render())

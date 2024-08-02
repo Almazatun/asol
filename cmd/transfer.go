@@ -21,6 +21,5 @@ var transferCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(transferCmd)
-	// TODO
-	// transferCmd.PersistentFlags().String("path", "", "make able to transfer list of accounts by [.json] file")
+	transferCmd.PersistentFlags().String("path", "", "make able to transfer list of accounts by [.json] file")
 }
