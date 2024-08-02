@@ -8,10 +8,11 @@ on:
 
 jobs:
   audit:
-    runs-on: ubuntu-20.04
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         go-version: ["1.22.x"]
+        os: [ubuntu-latest, macos-latest, windows-latest]
 
     steps:
       - uses: actions/checkout@v3
@@ -24,7 +25,17 @@ jobs:
         run: go get ./...
 
       - name: Build ASOL binary
-        run: make build
+        run: |
+          if [[ $RUNNER_OS == 'Windows' ]]; then
+            go build -o bin/asol.exe
+          else
+            make build
+          fi
 
       - name: Run ASOL tests
-        run: make test
+        run: |
+          if [[ $RUNNER_OS == 'Windows' ]]; then
+            cd helper && go test -v helper_test.go helper.go
+          else
+            make test
+          fi
