@@ -26,16 +26,16 @@ jobs:
 
       - name: Build ASOL binary
         run: |
-          if ( "${{ runner.os }}" == "Windows" ); then
+          if ( "${{ runner.os }}" == "Windows" ) {
             go build -o bin/asol.exe
-          else
+          } else {
             make build
-          fi
+          } fi
 
       - name: Run ASOL tests
         run: |
-          if ( "${{ runner.os }}" == "Windows" ); then
+          if ( "${{ runner.os }}" == "Windows" ) {
             cd helper && go test -v helper_test.go helper.go
-          else
+          } else {
             make test
-          fi
+          } fi
