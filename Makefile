@@ -1,3 +1,7 @@
+install:
+	@echo 'Install the dependencies'
+	go mod download
+
 run:
 	@echo 'Run [bin] ASOL CLI'
 	cd bin && ./asol
