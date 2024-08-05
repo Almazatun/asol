@@ -31,6 +31,10 @@ type account struct {
 	Amount    string `json:"amount"`
 }
 
+type singAndSendData struct {
+	Blockhash solana.Hash
+}
+
 const (
 	privateKeyQuestion      = "Please enter your private key"
 	transferAccountQuestion = "Please enter account address to transfer"
@@ -160,7 +164,9 @@ func TransferBalance(cmd *cobra.Command, args []string) error {
 			return err
 		}
 
-		if err = singAndSendTransaction(rpcClient, wsClient, privateKey, instructions); err != nil {
+		txDataList, err := singAndSendTransaction(rpcClient, wsClient, privateKey, instructions)
+
+		if err != nil {
 			return err
 		}
 
@@ -168,10 +174,10 @@ func TransferBalance(cmd *cobra.Command, args []string) error {
 		t.SetStyle(table.StyleColoredBlackOnGreenWhite)
 		t.SetCaption("Transfer SOL")
 
-		t.AppendHeader(table.Row{"From", "To", "Amount"})
+		t.AppendHeader(table.Row{"From", "To", "Amount", "Blockhash", "TxSignature"})
 
 		for _, acc := range listAccounts {
-			t.AppendRow(table.Row{privateKey.PublicKey(), acc.PublicKey, acc.Amount})
+			t.AppendRow(table.Row{privateKey.PublicKey(), acc.PublicKey, acc.Amount, txDataList[0], txDataList[1]})
 		}
 
 		fmt.Println(t.Render())
@@ -203,7 +209,9 @@ func TransferBalance(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if err = singAndSendTransaction(rpcClient, wsClient, privateKey, instructions); err != nil {
+	txDataList, err := singAndSendTransaction(rpcClient, wsClient, privateKey, instructions)
+
+	if err != nil {
 		return err
 	}
 
@@ -211,8 +219,8 @@ func TransferBalance(cmd *cobra.Command, args []string) error {
 	t.SetStyle(table.StyleColoredBlackOnGreenWhite)
 	t.SetCaption("Transfer SOL")
 
-	t.AppendHeader(table.Row{"From", "To", "Amount"})
-	t.AppendRow(table.Row{privateKey.PublicKey().String(), publicKeyAccount, amount})
+	t.AppendHeader(table.Row{"From", "To", "Amount", "Blockhash", "TxSignature"})
+	t.AppendRow(table.Row{privateKey.PublicKey().String(), publicKeyAccount, amount, txDataList[0], txDataList[1]})
 
 	fmt.Println(t.Render())
 	return nil
@@ -296,10 +304,11 @@ func singAndSendTransaction(
 	wsClient *ws.Client,
 	privateKey solana.PrivateKey,
 	instructions []solana.Instruction,
-) error {
+	// [2]string[Blockhash, txSignature]
+) ([2]string, error) {
 	recent, err := rpcClient.GetRecentBlockhash(context.TODO(), rpc.CommitmentFinalized)
 	if err != nil {
-		return fmt.Errorf(fmt.Sprintf("failed to get recent blockhash %v\n", err))
+		return [2]string{}, fmt.Errorf(fmt.Sprintf("failed to get recent blockhash %v\n", err))
 	}
 
 	tx, err := solana.NewTransaction(
@@ -309,7 +318,7 @@ func singAndSendTransaction(
 	)
 
 	if err != nil {
-		return fmt.Errorf(fmt.Sprintf("failed to create transaction %v\n", err))
+		return [2]string{}, fmt.Errorf(fmt.Sprintf("failed to create transaction %v\n", err))
 	}
 
 	_, err = tx.Sign(
@@ -321,7 +330,7 @@ func singAndSendTransaction(
 		},
 	)
 	if err != nil {
-		return fmt.Errorf(fmt.Sprintf("unable to sign transaction %v\n", err))
+		return [2]string{}, fmt.Errorf(fmt.Sprintf("unable to sign transaction %v\n", err))
 	}
 
 	log.Printf("🚀 Sending transaction...\n")
@@ -335,10 +344,13 @@ func singAndSendTransaction(
 		wsClient,
 		tx,
 	)
+
+	fmt.Println(tx.Signatures)
+
 	if err != nil {
-		return err
+		return [2]string{}, err
 	}
 
 	spew.Dump(sig)
-	return nil
+	return [2]string{recent.Value.Blockhash.String(), sig.String()}, nil
 }
