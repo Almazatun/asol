@@ -306,6 +306,7 @@ func singAndSendTransaction(
 	instructions []solana.Instruction,
 	// [2]string[Blockhash, txSignature]
 ) ([2]string, error) {
+	res := [2]string{}
 	recent, err := rpcClient.GetRecentBlockhash(context.TODO(), rpc.CommitmentFinalized)
 	if err != nil {
 		return [2]string{}, fmt.Errorf(fmt.Sprintf("failed to get recent blockhash %v\n", err))
@@ -318,7 +319,7 @@ func singAndSendTransaction(
 	)
 
 	if err != nil {
-		return [2]string{}, fmt.Errorf(fmt.Sprintf("failed to create transaction %v\n", err))
+		return res, fmt.Errorf(fmt.Sprintf("failed to create transaction %v\n", err))
 	}
 
 	_, err = tx.Sign(
@@ -330,7 +331,7 @@ func singAndSendTransaction(
 		},
 	)
 	if err != nil {
-		return [2]string{}, fmt.Errorf(fmt.Sprintf("unable to sign transaction %v\n", err))
+		return res, fmt.Errorf(fmt.Sprintf("unable to sign transaction %v\n", err))
 	}
 
 	log.Printf("🚀 Sending transaction...\n")
@@ -348,9 +349,12 @@ func singAndSendTransaction(
 	fmt.Println(tx.Signatures)
 
 	if err != nil {
-		return [2]string{}, err
+		return res, err
 	}
 
 	spew.Dump(sig)
-	return [2]string{recent.Value.Blockhash.String(), sig.String()}, nil
+	res[0] = recent.Value.Blockhash.String()
+	res[1] = sig.String()
+
+	return res, nil
 }
